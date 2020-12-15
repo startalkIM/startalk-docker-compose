@@ -1,0 +1,135 @@
+#!/bin/bash
+set -e
+help(){
+echo "
+Usage: startalkdockerctl <options>
+<options>:
+    init       set config
+    reset      delte all volume and logs
+    start      docker compose all modules in background way
+    help       show help info
+"
+}
+
+get_os() {
+unameOut="$(uname -s)"
+case "${unameOut}" in
+    Linux*)     machine=Linux;;
+    Darwin*)    machine=Mac;;
+    CYGWIN*)    machine=Cygwin;;
+    MINGW*)     machine=MinGw;;
+    *)          machine="UNKNOWN:${unameOut}"
+esac
+if [ ${machine} = "MinGw" ]
+then
+  echo "WARNING: This script may malfunction besides of Linux and Darwin..."
+fi
+}
+
+find_ip() {
+  OLD_IP=`grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}' ${PWD}/compose/conf/im_http_service/classes/nav.json|head -n 1`
+  if [[ -z $OLD_IP ]];
+  then
+      OLD_IP="ip"
+  fi
+}
+
+set_ip() {
+  get_os
+
+  find_ip
+  mkdir -p ${PWD}/.data_backup/ && cp -r ${PWD}/compose/conf/ ${PWD}/.data_backup/
+  if [ ${machine} == "Linux" ]
+  then
+    ip a
+    ALL_IP=`ip -o addr show up primary scope global | while read -r num dev fam addr rest; do echo ${addr%/*}; done|head -n 1`
+  elif [ ${machine} == "Mac" ]
+  then
+    ifconfig
+    ALL_IP=`ipconfig getifaddr en0`
+  elif [ ${machine} == "MinGw" ]
+  then
+    ipconfig
+    ALL_IP=`ipconfig.exe | grep -im1 'IPv4 Address' | cut -d ':' -f2 | xargs `
+  fi
+  read -r -p "*******  Is $ALL_IP the ip you gonna use? [y/N] : " response
+  case "$response" in
+      [yY][eE][sS]|[yY]) 
+          MY_IP=${ALL_IP}
+          ;;
+      *)
+          read -r -p "*******  Please input your IP : " MY_IP
+          ;;
+  esac
+    
+  SED_IP=$(echo "$OLD_IP" | sed 's/\./\\\./g')
+  if [ ${machine} == "Linux" ]
+  then
+    #redis
+    #sed -i"s/host: \"$SED_IP\" \#IP_TOBECHANGE/\"$MY_IP\" \#IP_TOBECHANGE/g" ${PWD}/compose/conf/ejabberd/ejabberd.yml.qunar
+    #sql
+    #sed -i "s/sql_server: \"$SED_IP\"/sql_server: \"$MY_IP\"/g" ${PWD}/compose/conf/ejabberd/ejabberd.yml.qunar
+    sed -i "s/$SED_IP/$MY_IP/g" ${PWD}/compose/conf/im_http_service/classes/*.json
+    #sed -i "s/$SED_IP/$MY_IP/g" ${PWD}/compose/conf/im_http_service/classes/jdbc.properties
+    #sed -i "s/$SED_IP/$MY_IP/g" ${PWD}/compose/conf/im_http_service/classes/redis.properties
+    #sed -i "s/$SED_IP/$MY_IP/g" ${PWD}/compose/conf/push_service/classes/app.properties
+    #sed -i "s/$SED_IP/$MY_IP/g" ${PWD}/compose/conf/push_service/classes/jdbc.properties
+    #sed -i "s/$SED_IP/$MY_IP/g" ${PWD}/compose/conf/push_service/classes/redis.properties
+    #sed -i "s/$SED_IP/$MY_IP/g" ${PWD}/compose/conf//qfproxy/classes/qfproxy.properties
+    #sed -i "s/$SED_IP/$MY_IP/g" ${PWD}/java/im_http_service/conf/classes/*.json
+    #sed -i "s/$SED_IP/$MY_IP/g" ${PWD}/java/im_http_service/classes/jdbc.properties
+    #sed -i "s/$SED_IP/$MY_IP/g" ${PWD}/java/im_http_service/classes/redis.properties
+    #sed -i "s/$SED_IP/$MY_IP/g" ${PWD}/java/qfproxy/conf/classes/qfproxy.properties
+    #sed -i "s/http:\/\/$SED_IP/http:\/\/$MY_IP/g" ${PWD}/compose/conf/push_service/classes/app.properties
+    #sed -i "s/$SED_IP/$MY_IP/g" ${PWD}/java/push_service/classes/jdbc.properties
+    #sed -i "s/$SED_IP/$MY_IP/g" ${PWD}/java/push_service/classes/redis.properties
+  elif [ ${machine} == "Mac" ]
+  then
+    #sql
+    #sed -i '' "s/host: \"$SED_IP\" \#IP_TOBECHANGE/sql_server: \"$MY_IP\" \#IP_TOBECHANGE/g" ${PWD}/compose/conf/ejabberd/ejabberd.yml.qunar
+    #redis
+    #sed -i '' "s/sql_server: \"$SED_IP\"/sql_server: \"$MY_IP\"/g" ${PWD}/compose/conf/ejabberd/ejabberd.yml.qunar
+    sed -i '' "s/$SED_IP/$MY_IP/g" ${PWD}/compose/conf/im_http_service/classes/*.json
+    #sed -i '' "s/$SED_IP/$MY_IP/g" ${PWD}/compose/conf/im_http_service/classes/jdbc.properties
+    #sed -i '' "s/$SED_IP/$MY_IP/g" ${PWD}/compose/conf/im_http_service/classes/redis.properties
+    #sed -i '' "s/http:\/\/$SED_IP/http:\/\/$MY_IP/g" ${PWD}/compose/conf/push_service/classes/app.properties
+    #sed -i '' "s/$SED_IP/$MY_IP/g" ${PWD}/compose/conf/push_service/classes/jdbc.properties
+    #sed -i '' "s/$SED_IP/$MY_IP/g" ${PWD}/compose/conf/push_service/classes/redis.properties
+    #sed -i '' "s/$SED_IP/$MY_IP/g" ${PWD}/compose/conf//qfproxy/classes/qfproxy.properties
+    #sed -i '' "s/$SED_IP/$MY_IP/g" ${PWD}/java/im_http_service/conf/classes/*.json
+    #sed -i '' "s/$SED_IP/$MY_IP/g" ${PWD}/java/qfproxy/conf/classes/qfproxy.properties
+    #sed -i '' "s/$SED_IP/$MY_IP/g" ${PWD}/java/push_service/conf/classes/app.properties
+  elif [ ${machine} == "MinGw" ]
+  then
+    #ipconfig
+    #ALL_IP=`ipconfig.exe | grep -im1 'IPv4 Address' | cut -d ':' -f2`
+    sed -i "s/$SED_IP/$MY_IP/g" ${PWD}/compose/conf/im_http_service/classes/*.json
+  else
+    echo "Please modify  ${PWD}/compose/conf/im_http_service/classes/*.json to your IP manually"
+  fi
+}
+
+go_path() {
+  BASEDIR=$(dirname $0)
+  cd ${BASEDIR}
+}
+
+reset_all() {
+  go_path
+  set_ip
+  rm -rf  ${PWD}/compose/volume/data/pg
+  find ${PWD}/compose/volume/log/ -type f|xargs -I {} rm -f {}
+}
+
+start() {
+  go_path
+  cd compose && docker-compose up -d
+}
+
+case $1 in
+  init) go_path; set_ip;; 
+  reset) reset_all;;
+  start) start;;
+  help) help;;
+  *) help;;
+esac
