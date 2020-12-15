@@ -1,0 +1,156 @@
+#version: "3.8"
+services:
+  postgres:
+    container_name: startalk-pg
+    networks:
+      - startalk-net
+    image: 'startalk/startalk-pg:0.1'
+    #network_mode: startalk-net
+    restart: always
+    volumes:
+      - ${PWD}/volume/data/pg/pgdata-volume:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ejabberd
+      POSTGRES_PASSWORD: 123456
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_INITDB_ARGS: "--auth-local=md5"
+      POSTGRES_INITDB_ARGS: "--auth-host=md5"
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", '-U', 'ejabberd', '-d', 'ejabberd']
+      interval: 10s
+      timeout: 2s
+      retries: 10
+
+  redis:
+    container_name: startalk-redis
+    networks:
+      - startalk-net
+    #image: 'startalk/startalk-redis:0.1'
+    #network_mode: startalk-net
+    image: 'redis:6.0.9-alpine'
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - ${PWD}/conf/redis/redis.conf:/usr/local/etc/redis/redis.conf
+      - ${PWD}/volume/data/redis/:/data/
+
+
+  openresty:
+    container_name: startalk-or
+    networks:
+      - startalk-net
+    #network_mode: startalk-net
+    image: 'startalk/startalk-or:0.1'
+    restart: always
+    volumes:
+      - ${PWD}/volume/log/or/:/usr/local/openresty/nginx/logs/
+      - ${PWD}/conf/or/conf.d/subconf/or.server.location.package.qtapi.conf:/usr/local/openresty/nginx/conf/conf.d/subconf/or.server.location.package.qtapi.conf
+      - ${PWD}/conf/or/conf.d/upstreams/qt.qunar.com.upstream.conf:/usr/local/openresty/nginx/conf/conf.d/upstreams/qt.qunar.com.upstream.conf
+      - ${PWD}/conf/or/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf
+      - ${PWD}/conf/or/lua_app/qtalkredis.lua:/usr/local/openresty/nginx/lua_app/checks/qim/qtalkredis.lua
+    ports:
+      - '8080:8080'
+    #command: /usr/local/openresty/bin/openresty
+    depends_on:
+      - qfproxy
+      - postgres
+      - redis
+      - search
+      - push_service
+      - im_http_service
+
+  ejabberd:
+    container_name: startalk-ejab
+    networks:
+      - startalk-net
+    #network_mode: startalk-net
+    image: 'startalk/startalk-ejab:0.1'
+    ports:
+      - '5202:5202'
+      - '5280:5280'
+      - '10050:10050'
+    volumes:
+      - ${PWD}/volume/log/ejabberd/:/startalk/ejabberd/var/log/ejabberd/
+      - ${PWD}/conf/ejabberd/ejabberdctl.cfg.qunar:/startalk/ejabberd/etc/ejabberd/ejabberdctl.cfg
+      - ${PWD}/conf/ejabberd/ejabberd.yml.qunar:/startalk/ejabberd/etc/ejabberd/ejabberd.yml
+    command: /startalk/ejabberd/sbin/ejabberdctl foreground
+    depends_on:
+      - postgres
+      - redis
+
+  im_http_service:
+    container_name: startalk-im-http
+    networks:
+      - startalk-net
+    #network_mode: startalk-net
+    image: 'startalk/startalk-im_http_service:0.1'
+    ports:
+      - '8081:8081'
+    volumes:
+      - ${PWD}/volume/log/im_http_service/:/usr/local/tomcat/logs/
+      - ${PWD}/conf/im_http_service/server.xml:/usr/local/tomcat/conf/server.xml
+      - ${PWD}/conf/im_http_service/classes/:/usr/local/tomcat/webapps/im_http_service/WEB-INF/classes/
+    depends_on:
+      - postgres
+      - redis
+        
+  qfproxy:
+    container_name: startalk-qfproxy
+    networks:
+      - startalk-net
+    #network_mode: startalk-net
+    image: 'startalk/startalk-qfproxy:0.1'
+    ports:
+      - '8082:8082'
+    volumes:
+      - ${PWD}/volume/log/qfproxy/:/usr/local/tomcat/logs/
+      - ${PWD}/volume/data/qfproxy:/data
+        #- ${PWD}/volume/data/qfproxy/:/startalk/tomcat/qfproxy/upload/
+      - ${PWD}/conf/qfproxy/server.xml:/usr/local/tomcat/conf/server.xml
+      - ${PWD}/conf/qfproxy/classes/:/usr/local/tomcat/webapps/qfproxy/WEB-INF/classes/
+    depends_on:
+      - postgres
+      - redis
+
+  push_service:
+    container_name: startalk-push
+    networks:
+      - startalk-net
+    #network_mode: startalk-net
+    image: 'startalk/startalk-push_service:0.1'
+    ports:
+      - '8083:8083'
+    volumes:
+      - ${PWD}/volume/log/push_service/:/usr/local/tomcat/logs/
+      - ${PWD}/conf/push_service/server.xml:/usr/local/tomcat/conf/server.xml
+      - ${PWD}/conf/push_service/classes/:/usr/local/tomcat/webapps/push_service/WEB-INF/classes/
+    depends_on:
+      - postgres
+      - redis
+
+  search:
+    container_name: startalk-search
+    networks:
+      - startalk-net
+    #network_mode: startalk-net
+    image: 'startalk/startalk-search:0.2'
+    #restart: always
+    volumes:
+      - ${PWD}/volume/log/search/:/app/log/
+      - ${PWD}/conf/search/configure.ini/:/app/conf/configure.ini
+    ports:
+      - '8884:8884'
+    depends_on:
+      - postgres
+      - redis
+
+
+networks:
+  startalk-net:
+    driver: bridge
+
+
