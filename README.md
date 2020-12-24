@@ -15,7 +15,7 @@ As for usage in production enviroment, the origin way of deployment is more reco
   * Dockerfile version 3
   
 
-2. ```git clone git@github.com:startalkIM/startalk-docker.git && cd startalk-docker-compose```  
+2. ```git clone https://github.com/startalkIM/startalk-docker-compose.git && cd startalk-docker-compose```  
   It contains only docker compose.  
 
 3. ```./startalkdockerctl init```  
